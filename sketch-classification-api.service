@@ -1,0 +1,9 @@
+[Unit]
+Description=Sketch Classification API
+
+[Service]
+Environment=PYTHONPATH=/home/dogatuncay/.local/lib/python3.6/site-packages
+WorkingDirectory=/data/generate-images-from-strokes
+ExecStart=/usr/bin/env python3 app.py
+KillMode=process
+Restart=on-failure

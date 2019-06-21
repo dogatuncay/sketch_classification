@@ -1,0 +1,5 @@
+## INSTRUCTIONS ON HOW TO RUN THE SKETCH APPLICATION
+
+sudo python3 -m http.server 80
+python app.py
+

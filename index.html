@@ -1,0 +1,219 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script
+  src="https://code.jquery.com/jquery-3.4.1.min.js"
+  integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+  crossorigin="anonymous"></script>
+
+  <meta charset="utf-8">
+
+  <title>Sketch Classifier</title>
+  <meta name="description" content="Sketch Classifier">
+
+</head>
+<body>
+    <table style="width:100%">
+        <tr>
+            <th valign="top"> 
+                <div>
+                    <h3>Sketch</h3>
+                    <canvas id="sketchArea" width="256" height="256" style="border:1px solid #000000;"></canvas>
+                    <p>
+                        <button id="runSimplified">Run Simplified Sketch</button>
+                    </p>
+                    <p id="pageCoordinates"></p>
+                    <p id="resultSimplifiedRaw"></p>
+                    <p>
+                        <textarea id="rawData" rows="15" cols="60" style="display:none;"></textarea>
+                    </p>
+                    <p>
+                        <textarea id="pointsData" rows="15" cols="60" style="display:none;"></textarea>
+                    </p>
+                </div>
+            </th>
+            <th valign="top">
+                <div>
+                    <h3>Simplified Sketch Data </h3>
+                    <textarea id="simplifiedRaw" rows="20" cols="40">Simplified strokes data</textarea>
+                    <p>
+                        <button id="runSimplifiedRaw">Run Simplified Array</button>
+                    </p>
+                    <p id="resultRaw"></p>
+                </div>
+            </th>
+	        <th>
+                <img src="red_door_small.png" align="center">
+                <a href="nsfw_label.html">NSFW Quick Draw</a>
+                <p>
+                    <textarea id="labels" rows="60" cols="60"></textarea>
+                </p>
+            </th>
+        </tr>
+    </table>
+
+    <script type="text/javascript">
+        $(function(){
+            var mouseDown = false;
+            const canvas = document.getElementById('sketchArea');
+            const ctx = canvas.getContext('2d');
+
+            var firstStroke = false;
+            var strokesPoints = [];
+            var strokesRaw = [];
+
+            var currentStrokeStartTime = (new Date()).getTime();
+            var currentStroke = {x: [], y: [], t: []};
+
+            var currentPoints = [];
+
+	    const labelsElement = $('#labels');
+            try 
+            {
+                axios.get('http://35.237.138.188:8000/v1/getLabels')
+                    .then(function (response) {
+                        const labels = JSON.stringify(response.data);
+                        labelsElement.val(`I can only guess these: ${labels}`)
+                    })
+                    .catch(function (error) {
+                        console.error(error);
+                        labelsElement.html('<p style="color: red">error</p>');
+                    });
+            } 
+            catch(error) 
+            {
+                console.error(error);
+                $('#resultSimplifiedRaw').html('<p style="color: red">error</p>');
+            }
+	
+            $('#sketchArea').on('mousedown', function(event) {
+                event.preventDefault();
+
+                const x = event.offsetX;
+                const y = event.offsetY;
+
+                ctx.moveTo(x, y);
+                
+                currentStrokeStartTime = (new Date()).getTime();
+                currentStroke = {x: [], y: [], t: []};
+                currentPoints = [];
+                firstStroke = true;
+                mouseDown = true;
+            });
+
+            $('#sketchArea').on('mouseup', function(event) {
+                event.preventDefault();
+                mouseDown = false;
+
+                strokesRaw.push([currentStroke.x, currentStroke.y, currentStroke.t]);
+                strokesPoints.push(currentPoints);
+
+                console.log(strokesRaw);
+                console.log((JSON.stringify(strokesRaw).length / 1024) + 'kb')
+
+                try {
+                    
+                    const resultElement = $('#resultSimplifiedRaw');
+                    resultElement.html('<p style="color: green">pending</p>');
+    
+                    axios.post('http://35.237.138.188:8000/v1/predictSimplified', strokesPoints)
+                        .then(function (response) {
+                            const result = JSON.stringify(response.data);
+                            resultElement.html(`<p>I see <br />${result}</p>`)
+                        })
+                        .catch(function (error) {
+                            console.error(error);
+                            resultElement.html('<p style="color: red">error</p>');
+                        });
+                } catch(error) {
+                    console.error(error);
+                    $('#resultSimplifiedRaw').html('<p style="color: red">error</p>');
+                }
+            })
+
+            $('#sketchArea').on('mousemove', function(event) {
+                event.preventDefault();
+
+                const x = event.offsetX;
+                const y = event.offsetY;
+
+                if(mouseDown){
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+
+                    currentPoints.push([x, y]);
+                    
+                    currentStroke.x.push(x);
+                    currentStroke.y.push(y);
+
+                    if(firstStroke) {
+                        firstStroke = false;
+                        currentStrokeStartTime = (new Date()).getTime();
+                        currentStroke.t.push(0);
+                    } else {
+                        const t = (new Date()).getTime();
+                        currentStroke.t.push(t - currentStrokeStartTime);
+                    }
+
+                }
+                //var pageCoords = "( " + x + ", " + y + " )";
+                //$( "#pageCoordinates" ).text( "Page Coordinates : " + pageCoords);
+            })
+
+            $('#runSimplified').on('click', function(event) {
+                event.preventDefault();
+                $( "#rawData" ).text( "Raw Data : " + JSON.stringify(strokesRaw));
+                $( "#rawData" ).show();
+
+                $( "#pointsData" ).text( "Points Data : " + JSON.stringify(strokesPoints));
+                $( "#pointsData" ).show();
+
+                try {
+                    
+                    const resultElement = $('#resultSimplifiedRaw');
+                    resultElement.html('<p style="color: green">pending</p>');
+    
+                    axios.post('http://35.237.138.188:80/v1/predictSimplified', strokesPoints)
+                        .then(function (response) {
+                            const result = JSON.stringify(response.data);
+                            resultElement.html(`<p>I see ${result}</p>`)
+                        })
+                        .catch(function (error) {
+                            console.error(error);
+                            //resultElement.html('<p style="color: red">error</p>');
+                        });
+                } catch(error) {
+                    console.error(error);
+                    $('#resultSimplifiedRaw').html('<p style="color: red">error</p>');
+                }
+                
+            });
+
+            $('#runSimplifiedRaw').on('click', function(event) {
+                event.preventDefault();
+                try {
+                    const strokeData = JSON.parse($('#simplifiedRaw').val())
+                    console.log(strokeData)
+                    const resultElement = $('#resultRaw');
+                    resultElement.html('<p style="color: green">pending</p>');
+    
+                    axios.post('http://35.237.138.188:80/v1/predictRaw', strokeData)
+                        .then(function (response) {
+                            resultElement.html(JSON.stringify(response.data));
+                        })
+                        .catch(function (error) {
+                            console.error(error);
+                            resultElement.html('<p style="color: red">error</p>');
+                        });
+                } catch(error) {
+                    console.error(error);
+                    $('#resultRaw').html('<p style="color: red">error</p>');
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>

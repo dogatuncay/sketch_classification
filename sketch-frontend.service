@@ -1,0 +1,9 @@
+[Unit]
+Description=Sketch Frontend Server
+
+[Service]
+WorkingDirectory=/data/www
+#ExecStart=/bin/bash -l -c '/usr/bin/env python3 -m http.server 80 > /data/generate-images-from-strokes/stdout.log 2> /data/generate-images-from-strokes/stderr.log'
+ExecStart=/usr/bin/env python3 -m http.server 80
+KillMode=process
+Restart=on-failure
